@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <meta name="viewport" content="width=device-width">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/monolith.min.css">
+  <link rel="stylesheet" href="recognition01.css">
+  <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
+  <title>recognition</title>
+</head>
+<body>
+
+  <div id="content">
+    <div id="l_log"  class="output"></div>
+    <div id="v_border" class="v border"></div>
+    <div id="r_log"  class="output"></div>
+    <div id="h_border" class="h border"></div>
+    <div id="current" class="output"></div>
+  </div>
+
+  <!-- フローティングツールバー -->
+  <ul class="icons">
+    <li><input type="checkbox" id="stg"><label class="material-icons" for="stg" title="設定">settings</label></li>
+    <li><input type="checkbox" id="mic"><label class="material-icons" for="mic" title="マイク">mic_off</label></li>
+    <li><input type="checkbox" id="oin"><label class="material-icons" for="oin" title="別窓">open_in_new</label></li>
+  </ul>
+
+  <!-- 設定パネル -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <span class="material-icons">tune</span>
+      <span>設定</span>
+    </div>
+
+    <section class="stg-section">
+      <div class="stg-section-title">背景色</div>
+      <div class="stg-row">
+        <span class="stg-label">全体</span><i id="stgBgc1"></i>
+        <span class="stg-label">ログ偶数</span><i id="stgBgc2"></i>
+        <span class="stg-label">ログ奇数</span><i id="stgBgc3"></i>
+      </div>
+    </section>
+
+    <section class="stg-section">
+      <div class="stg-section-title">フォント</div>
+      <div class="stg-row">
+        <span class="stg-label">フォント</span>
+        <select id="stgFont" class="stg-select"></select>
+      </div>
+    </section>
+
+    <section class="stg-section">
+      <div class="stg-section-title">発言（ログ）</div>
+      <div class="stg-row">
+        <span class="stg-label">文字色</span><i id="stgFc1"></i>
+        <span class="stg-label">サイズ</span>
+        <input type="number" value="16.0" min="1" max="100" step="0.1" id="stgFs1"> pt
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り1色</span><i id="stgFc2"></i>
+        <span class="stg-label">幅</span>
+        <input type="number" value="3" min="0" max="10" step="1" id="stgFs2"> px
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り1グラデ</span>
+        <i id="stgFc2g"></i>
+        <label class="stg-check"><input type="checkbox" id="stgFs2g">有効</label>
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り2色</span><i id="stgFc2b"></i>
+        <span class="stg-label">幅</span>
+        <input type="number" value="0" min="0" max="10" step="1" id="stgFs2b"> px
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り2グラデ</span>
+        <i id="stgFc2bg"></i>
+        <label class="stg-check"><input type="checkbox" id="stgFs2bg">有効</label>
+      </div>
+    </section>
+
+    <section class="stg-section">
+      <div class="stg-section-title">発言（最新）</div>
+      <div class="stg-row">
+        <span class="stg-label">文字色</span><i id="stgFc3"></i>
+        <span class="stg-label">サイズ</span>
+        <input type="number" value="20.0" min="1" max="100" step="0.1" id="stgFs3"> pt
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り1色</span><i id="stgFc4"></i>
+        <span class="stg-label">幅</span>
+        <input type="number" value="5" min="0" max="10" step="1" id="stgFs4"> px
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り1グラデ</span>
+        <i id="stgFc4g"></i>
+        <label class="stg-check"><input type="checkbox" id="stgFs4g">有効</label>
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り2色</span><i id="stgFc4b"></i>
+        <span class="stg-label">幅</span>
+        <input type="number" value="0" min="0" max="10" step="1" id="stgFs4b"> px
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">縁取り2グラデ</span>
+        <i id="stgFc4bg"></i>
+        <label class="stg-check"><input type="checkbox" id="stgFs4bg">有効</label>
+      </div>
+    </section>
+
+    <section class="stg-section">
+      <div class="stg-section-title">動作</div>
+      <div class="stg-row">
+        <label class="stg-check"><input type="checkbox" id="stgMicOn">起動時にマイクをON</label>
+      </div>
+      <div class="stg-row">
+        <label class="stg-check"><input type="checkbox" id="r_align">ログを右枠に表示</label>
+      </div>
+      <div class="stg-row">
+        <label class="stg-check"><input type="checkbox" id="stgBouyomi">棒読みちゃんに送る(実験)</label>
+      </div>
+      <div class="stg-row">
+        <label class="stg-check"><input type="checkbox" id="stgVoicevox">VOICEVOXに送る(実験)</label>
+      </div>
+    </section>
+
+    <section class="stg-section">
+      <div class="stg-section-title">レイアウト</div>
+      <div class="stg-row">
+        <span class="stg-label">枠分割</span>
+        <input type="number" min="0" step="1" id="lw" readonly> ,
+        <input type="number" min="0" step="1" id="lh" readonly>
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">最新幅</span>
+        <input type="number" min="0" step="1" id="cw" readonly>
+        <label class="stg-check"><input type="checkbox" id="cw_auto">最大幅</label>
+      </div>
+    </section>
+
+    <section class="stg-section">
+      <div class="stg-section-title">別窓</div>
+      <div class="stg-row">
+        <span class="stg-label">X</span><input type="number" value="100" min="0" step="1" id="x"> px
+        <span class="stg-label">Y</span><input type="number" value="100" min="0" step="1" id="y"> px
+      </div>
+      <div class="stg-row">
+        <span class="stg-label">W</span><input type="number" value="400" min="0" step="1" id="w"> px
+        <span class="stg-label">H</span><input type="number" value="100" min="0" step="1" id="h"> px
+      </div>
+      <div class="stg-row">
+        <button id="getSizePos" class="stg-btn">現在位置・サイズを取得</button>
+      </div>
+    </section>
+
+    <section class="stg-section stg-actions">
+      <button id="stgSave"  class="stg-btn primary">💾 Save</button>
+      <button id="stgClear" class="stg-btn danger">🗑 Clear</button>
+      <span class="status" id="statusMsg"></span>
+    </section>
+  </div>
+
+  <script src="recognition01.js"></script>
+</body>
+</html>
