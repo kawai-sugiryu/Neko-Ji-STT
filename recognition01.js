@@ -180,7 +180,7 @@ if (!SR) alert('このブラウザは SpeechRecognition に対応していませ
 
 const recognition = new SR();
 recognition.continuous     = true;
-recognition.lang           = 'ja';
+recognition.lang           = 'ja-JP';
 recognition.interimResults = true;
 recognition.maxAlternatives= 1;
 recognition.processLocally = true;
