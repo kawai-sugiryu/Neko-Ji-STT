@@ -191,12 +191,29 @@ recognition.maxAlternatives= 1;
 recognition.processLocally = true;
 
 /**
- * オンデバイス音声認識が利用可能かどうかを事前に確認する。
- * available() が 'available' 以外の場合、processLocally = true のまま
- * start() すると language-not-supported になるため、
- * 未インストールなら processLocally を false に落としてクラウド認識へフォールバックする。
+ * オンデバイス音声認識が利用可能かどうかを事前に確認し、
+ * 必要ならインストールまで行う。
+ *
+ * available() の戻り値:
+ *   'available'    - 即座に使える
+ *   'downloadable' - 言語パック未インストール。install() でダウンロードを開始できる
+ *   'downloading'  - インストール中。完了を待つ必要がある
+ *   'unavailable'  - この環境では利用不可
+ *
+ * install() 完了後に available() が 'available' に変わるまで多少のタイムラグが
+ * あるため、install() 成功後は短い間隔でポーリングして反映を待つ。
  */
 let onDeviceReady = false;
+
+async function waitUntilAvailable(maxWaitMs = 15000, intervalMs = 500) {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const status = await SR.available({ langs: [RECOGNITION_LANG], processLocally: true });
+    if (status === 'available') return true;
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  return false;
+}
 
 async function checkOnDeviceAvailability() {
   if (!SR.available) {
@@ -206,15 +223,42 @@ async function checkOnDeviceAvailability() {
   }
   try {
     const status = await SR.available({ langs: [RECOGNITION_LANG], processLocally: true });
+
     if (status === 'available') {
       onDeviceReady = true;
       recognition.processLocally = true;
-    } else {
-      // 'downloadable' / 'downloading' / 'unavailable' はまだ使えないので
-      // クラウド認識にフォールバックしておく
-      console.warn(`[SR] on-device (${RECOGNITION_LANG}) status: ${status} → クラウド認識にフォールバック`);
-      recognition.processLocally = false;
+      return;
     }
+
+    if (status === 'downloadable' || status === 'downloading') {
+      console.warn(`[SR] on-device (${RECOGNITION_LANG}) status: ${status} → インストールを試みます`);
+      showStatus('音声モデルを準備中…');
+      // インストール要求（downloading中でも安全に呼べる）
+      if (SR.install) {
+        try {
+          await SR.install({ langs: [RECOGNITION_LANG], processLocally: true });
+        } catch (err) {
+          console.warn('[SR] install() 失敗', err);
+        }
+      }
+      // インストール反映を待つ（バックグラウンドDLのため即時には反映されないことがある）
+      const ready = await waitUntilAvailable();
+      if (ready) {
+        console.info(`[SR] on-device (${RECOGNITION_LANG}) インストール完了、オンデバイス認識を使用します`);
+        showStatus('音声モデルの準備完了');
+        onDeviceReady = true;
+        recognition.processLocally = true;
+      } else {
+        console.warn(`[SR] on-device (${RECOGNITION_LANG}) インストール未完了のためクラウド認識にフォールバック`);
+        recognition.processLocally = false;
+      }
+      return;
+    }
+
+    // 'unavailable' など
+    console.warn(`[SR] on-device (${RECOGNITION_LANG}) status: ${status} → クラウド認識にフォールバック`);
+    recognition.processLocally = false;
+
   } catch (err) {
     console.warn('[SR] available() チェック失敗、クラウド認識にフォールバック', err);
     recognition.processLocally = false;
