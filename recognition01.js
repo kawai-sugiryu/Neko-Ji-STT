@@ -183,6 +183,7 @@ recognition.continuous     = true;
 recognition.lang           = 'ja';
 recognition.interimResults = true;
 recognition.maxAlternatives= 1;
+recognition.processLocally = true;
 
 let lastIdx    = 0;
 let retryCount = 0;
