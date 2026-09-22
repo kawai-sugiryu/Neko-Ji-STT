@@ -178,12 +178,50 @@ const stgFc4bg = createPickr('#stgFc4bg', localStorage.getItem('defFc4bg') || '#
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (!SR) alert('このブラウザは SpeechRecognition に対応していません。');
 
+// SODA（オンデバイス音声認識）は 'ja' ではなく 'ja-JP' のような
+// 厳密な BCP-47 言語タグでインストールされているため、
+// recognition.lang もこれに合わせる必要がある（一致しないと language-not-supported）。
+const RECOGNITION_LANG = 'ja-JP';
+
 const recognition = new SR();
 recognition.continuous     = true;
-recognition.lang           = 'ja-JP';
+recognition.lang           = RECOGNITION_LANG;
 recognition.interimResults = true;
 recognition.maxAlternatives= 1;
 recognition.processLocally = true;
+
+/**
+ * オンデバイス音声認識が利用可能かどうかを事前に確認する。
+ * available() が 'available' 以外の場合、processLocally = true のまま
+ * start() すると language-not-supported になるため、
+ * 未インストールなら processLocally を false に落としてクラウド認識へフォールバックする。
+ */
+let onDeviceReady = false;
+
+async function checkOnDeviceAvailability() {
+  if (!SR.available) {
+    // available() 自体が存在しない古い実装 → クラウド認識にフォールバック
+    recognition.processLocally = false;
+    return;
+  }
+  try {
+    const status = await SR.available({ langs: [RECOGNITION_LANG], processLocally: true });
+    if (status === 'available') {
+      onDeviceReady = true;
+      recognition.processLocally = true;
+    } else {
+      // 'downloadable' / 'downloading' / 'unavailable' はまだ使えないので
+      // クラウド認識にフォールバックしておく
+      console.warn(`[SR] on-device (${RECOGNITION_LANG}) status: ${status} → クラウド認識にフォールバック`);
+      recognition.processLocally = false;
+    }
+  } catch (err) {
+    console.warn('[SR] available() チェック失敗、クラウド認識にフォールバック', err);
+    recognition.processLocally = false;
+  }
+}
+// srStart() から待機できるように Promise を保持しておく
+const availabilityCheckPromise = checkOnDeviceAvailability();
 
 let lastIdx    = 0;
 let retryCount = 0;
@@ -198,15 +236,17 @@ let srRunning  = false;
 function srStart(delay = 0) {
   if (srRunning) return;
   const doStart = () => {
-    const p = audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve();
-    p.then(() => {
-      if (!mic.checked) return;
-      try {
-        recognition.start();
-        srRunning = true;
-      } catch (_) {
-        // InvalidStateError（多重起動）は無視
-      }
+    availabilityCheckPromise.then(() => {
+      const p = audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve();
+      p.then(() => {
+        if (!mic.checked) return;
+        try {
+          recognition.start();
+          srRunning = true;
+        } catch (_) {
+          // InvalidStateError（多重起動）は無視
+        }
+      });
     });
   };
   delay > 0 ? setTimeout(doStart, delay) : doStart();
@@ -309,6 +349,17 @@ recognition.onerror = (e) => {
       console.error('[SR] マイクの使用が許可されていません');
       mic.checked = false;
       document.querySelector('label[for="mic"]').textContent = 'mic_off';
+      break;
+    case 'language-not-supported':
+      // オンデバイス言語パックが認識されなかった場合、
+      // クラウド認識に切り替えて再試行する（onend 経由）
+      if (recognition.processLocally) {
+        console.warn('[SR] language-not-supported: オンデバイス認識不可のためクラウド認識に切替');
+        recognition.processLocally = false;
+        onDeviceReady = false;
+      } else {
+        console.error('[SR] language-not-supported: クラウド認識でも言語未対応');
+      }
       break;
     default:
       console.warn('[SR error]', errType, e);
