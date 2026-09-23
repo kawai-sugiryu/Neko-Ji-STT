@@ -115,19 +115,22 @@ input[type=checkbox]:checked + label { color: #ff6060; }
   padding: 0.6em 0.8em 0.8em;
   color: rgba(255,255,255,0.88);
   font-size: 12px;
-  visibility: hidden;
+  /* visibility:hidden ではなく pointer-events:none + opacity:0 にする。
+     Pickr はカラーピッカーの初期化時に DOM 上での実寸が必要なため、
+     visibility:hidden（レンダリングされない扱い）の親要素配下だと
+     setColor()/default での色反映が正しく行われないことがある。 */
+  pointer-events: none;
   opacity: 0;
   transform: translateY(6px);
-  transition: opacity 150ms ease-out, transform 150ms ease-out, visibility 0s 150ms;
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.2) transparent;
 }
 
 .settings-panel.visible {
-  visibility: visible;
+  pointer-events: auto;
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 150ms ease-out, transform 150ms ease-out;
 }
 
 .settings-header {

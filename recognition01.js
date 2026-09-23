@@ -637,6 +637,19 @@ const LS = {
 
 // ===== 設定復元 =====
 (function restoreSettings() {
+  // Pickr は生成時点のデフォルト値で初期化されているだけなので、
+  // 保存値がある場合はここで明示的に setColor() して反映させる。
+  // 第2引数 true = silent（change イベントを発火させない）。
+  const pickrRestoreMap = {
+    defBgc1: stgBgc1, defBgc2: stgBgc2, defBgc3: stgBgc3,
+    defFc1: stgFc1, defFc2: stgFc2, defFc2g: stgFc2g, defFc2b: stgFc2b, defFc2bg: stgFc2bg,
+    defFc3: stgFc3, defFc4: stgFc4, defFc4g: stgFc4g, defFc4b: stgFc4b, defFc4bg: stgFc4bg,
+  };
+  for (const [key, pickr] of Object.entries(pickrRestoreMap)) {
+    const saved = LS.get(key);
+    if (saved) pickr.setColor(saved, true);
+  }
+
   document.body.style.backgroundColor = LS.get('defBgc1', '#DBDAFF');
 
   stgFs1.value  = LS.get('defFs1',  stgFs1.value);
