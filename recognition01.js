@@ -142,6 +142,13 @@ function hex(pickr) {
 }
 
 // ===== Pickr 共通ファクトリ =====
+/**
+ * Pickr は DOM 上でレンダリングされきる前に生成されると、
+ * default オプションで渡した色がボタンのプレビューに反映されないことがある
+ * （内部初期化がレイアウト計算に依存するため）。
+ * これを避けるため、on('init', ...) で明示的に setColor() を呼び、
+ * DOM 初期化完了後に確実に色を反映させる。
+ */
 function createPickr(el, defaultColor) {
   return Pickr.create({
     el,
@@ -153,7 +160,9 @@ function createPickr(el, defaultColor) {
       preview: true, opacity: false, hue: true,
       interaction: { input: true, hex: true, hsva: true, save: false }
     }
-  }).on('hide', self => self.applyColor(true));
+  })
+    .on('init', self => self.setColor(defaultColor, true))
+    .on('hide', self => self.applyColor(true));
 }
 
 // 背景色
