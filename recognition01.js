@@ -127,18 +127,31 @@ function buildTextShadow(s1, c1, c1g, s2, c2, c2g) {
   return parts.length ? parts.join(',') : 'none';
 }
 
+/** #RRGGBB または #RRGGBBAA を線形補間する。アルファ省略時は不透明(ff)として扱う。 */
 function lerpHex(hex1, hex2, t) {
-  const r1 = parseInt(hex1.slice(1,3),16), g1 = parseInt(hex1.slice(3,5),16), b1 = parseInt(hex1.slice(5,7),16);
-  const r2 = parseInt(hex2.slice(1,3),16), g2 = parseInt(hex2.slice(3,5),16), b2 = parseInt(hex2.slice(5,7),16);
+  const parse = (h) => ({
+    r: parseInt(h.slice(1,3),16),
+    g: parseInt(h.slice(3,5),16),
+    b: parseInt(h.slice(5,7),16),
+    a: h.length >= 9 ? parseInt(h.slice(7,9),16) : 255,
+  });
+  const c1 = parse(hex1);
+  const c2 = parse(hex2);
+  const lerp = (a, b) => Math.round(a + (b - a) * t);
   return '#' + [
-    Math.round(r1 + (r2-r1)*t),
-    Math.round(g1 + (g2-g1)*t),
-    Math.round(b1 + (b2-b1)*t),
+    lerp(c1.r, c2.r),
+    lerp(c1.g, c2.g),
+    lerp(c1.b, c2.b),
+    lerp(c1.a, c2.a),
   ].map(v => v.toString(16).padStart(2,'0')).join('');
 }
 
+/** Pickr の現在色を #RRGGBBAA（8桁）の HEX 文字列で取得する。 */
 function hex(pickr) {
-  return pickr.getColor().toHEXA().toString().slice(0, 7);
+  const h = pickr.getColor().toHEXA().toString();
+  // 環境によっては不透明時に6桁（#RRGGBB）で返ることがあるため、
+  // その場合は不透明(ff)を補って8桁に揃える。
+  return h.length === 7 ? h + 'ff' : h;
 }
 
 // ===== Pickr 共通ファクトリ =====
@@ -156,9 +169,10 @@ function createPickr(el, defaultColor) {
     comparison: false,
     lockOpacity: false,
     default: defaultColor,
+    defaultRepresentation: 'RGBA',
     components: {
-      preview: true, opacity: false, hue: true,
-      interaction: { input: true, hex: true, hsva: true, save: false }
+      preview: true, opacity: true, hue: true,
+      interaction: { input: true, hex: true, rgba: true, save: false }
     }
   })
     .on('init', self => self.setColor(defaultColor, true))
@@ -169,7 +183,7 @@ function createPickr(el, defaultColor) {
 const stgBgc1 = createPickr('#stgBgc1', localStorage.getItem('defBgc1') || '#DBDAFF');
 const stgBgc2 = createPickr('#stgBgc2', localStorage.getItem('defBgc2') || '#8B90C7');
 const stgBgc3 = createPickr('#stgBgc3', localStorage.getItem('defBgc3') || '#65659B');
-stgBgc1.on('change', hsva => { document.body.style.backgroundColor = hsva.toHEXA(); });
+stgBgc1.on('change', () => { document.body.style.backgroundColor = hex(stgBgc1); });
 
 // 文字色・縁取り色
 const stgFc1   = createPickr('#stgFc1',   localStorage.getItem('defFc1')   || '#00488C');

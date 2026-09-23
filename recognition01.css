@@ -176,7 +176,7 @@ input[type=checkbox]:checked + label { color: #ff6060; }
 
 /* ===== Inputs ===== */
 input[type=number] {
-  width: 4em;
+  width: 5em;
   background: rgba(255,255,255,0.1);
   border: 1px solid rgba(255,255,255,0.2);
   border-radius: 0.3em;
