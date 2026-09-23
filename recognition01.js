@@ -191,8 +191,7 @@ recognition.maxAlternatives= 1;
 recognition.processLocally = true;
 
 /**
- * オンデバイス音声認識が利用可能かどうかを事前に確認し、
- * 必要ならインストールまで行う。
+ * オンデバイス音声認識の利用可否まわりの管理。
  *
  * available() の戻り値:
  *   'available'    - 即座に使える
@@ -200,12 +199,17 @@ recognition.processLocally = true;
  *   'downloading'  - インストール中。完了を待つ必要がある
  *   'unavailable'  - この環境では利用不可
  *
- * install() 完了後に available() が 'available' に変わるまで多少のタイムラグが
- * あるため、install() 成功後は短い間隔でポーリングして反映を待つ。
+ * 重要: install() は "downloadable" の状態からの呼び出しに
+ * ユーザージェスチャー（クリック等のイベントハンドラ内での直接呼び出し）を要求する。
+ * そのため、
+ *   - available() によるチェックはページロード時に先に行ってよい（読み取り専用）
+ *   - install() は必ず mic クリックハンドラの中で直接呼ぶ
+ * という 2 段階に分離している。
  */
 let onDeviceReady = false;
+let lastKnownStatus = null; // 'available' | 'downloadable' | 'downloading' | 'unavailable' | null
 
-async function waitUntilAvailable(maxWaitMs = 15000, intervalMs = 500) {
+async function waitUntilAvailable(maxWaitMs = 20000, intervalMs = 500) {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     const status = await SR.available({ langs: [RECOGNITION_LANG], processLocally: true });
@@ -215,57 +219,78 @@ async function waitUntilAvailable(maxWaitMs = 15000, intervalMs = 500) {
   return false;
 }
 
-async function checkOnDeviceAvailability() {
+/** ページロード時に呼ぶ。状態を読むだけで install() は呼ばない（gesture不要）。 */
+async function checkAvailabilityOnly() {
   if (!SR.available) {
-    // available() 自体が存在しない古い実装 → クラウド認識にフォールバック
     recognition.processLocally = false;
     return;
   }
   try {
     const status = await SR.available({ langs: [RECOGNITION_LANG], processLocally: true });
-
+    lastKnownStatus = status;
     if (status === 'available') {
       onDeviceReady = true;
       recognition.processLocally = true;
-      return;
+    } else {
+      // 'downloadable' / 'downloading' / 'unavailable'
+      // この時点では install() を呼ばずクラウドへ暫定フォールバックしておく。
+      // mic クリック時に ensureOnDeviceReady() が改めてインストールを試みる。
+      recognition.processLocally = false;
     }
-
-    if (status === 'downloadable' || status === 'downloading') {
-      console.warn(`[SR] on-device (${RECOGNITION_LANG}) status: ${status} → インストールを試みます`);
-      showStatus('音声モデルを準備中…');
-      // インストール要求（downloading中でも安全に呼べる）
-      if (SR.install) {
-        try {
-          await SR.install({ langs: [RECOGNITION_LANG], processLocally: true });
-        } catch (err) {
-          console.warn('[SR] install() 失敗', err);
-        }
-      }
-      // インストール反映を待つ（バックグラウンドDLのため即時には反映されないことがある）
-      const ready = await waitUntilAvailable();
-      if (ready) {
-        console.info(`[SR] on-device (${RECOGNITION_LANG}) インストール完了、オンデバイス認識を使用します`);
-        showStatus('音声モデルの準備完了');
-        onDeviceReady = true;
-        recognition.processLocally = true;
-      } else {
-        console.warn(`[SR] on-device (${RECOGNITION_LANG}) インストール未完了のためクラウド認識にフォールバック`);
-        recognition.processLocally = false;
-      }
-      return;
-    }
-
-    // 'unavailable' など
-    console.warn(`[SR] on-device (${RECOGNITION_LANG}) status: ${status} → クラウド認識にフォールバック`);
-    recognition.processLocally = false;
-
   } catch (err) {
     console.warn('[SR] available() チェック失敗、クラウド認識にフォールバック', err);
     recognition.processLocally = false;
   }
 }
-// srStart() から待機できるように Promise を保持しておく
-const availabilityCheckPromise = checkOnDeviceAvailability();
+// srStart() 側は、このロード時チェックが終わるのを待つ（gesture不要な部分のみ）
+const availabilityCheckPromise = checkAvailabilityOnly();
+
+/**
+ * mic クリックハンドラ内から直接呼ぶ。ユーザージェスチャーの文脈を保つため、
+ * この関数自体を await で挟んでも構わないが、内部の SR.install() 呼び出しは
+ * 呼び出しスタック上でクリックイベントから辿れる必要がある。
+ */
+async function ensureOnDeviceReady() {
+  if (onDeviceReady) return true;
+  if (!SR.available || !SR.install) return false;
+
+  if (lastKnownStatus === null) {
+    lastKnownStatus = await SR.available({ langs: [RECOGNITION_LANG], processLocally: true });
+  }
+
+  if (lastKnownStatus === 'available') {
+    onDeviceReady = true;
+    recognition.processLocally = true;
+    return true;
+  }
+
+  if (lastKnownStatus === 'downloadable' || lastKnownStatus === 'downloading') {
+    showStatus('音声モデルを準備中…');
+    try {
+      // クリックハンドラの呼び出しスタック内なので user gesture 要件を満たす
+      await SR.install({ langs: [RECOGNITION_LANG], processLocally: true });
+    } catch (err) {
+      console.warn('[SR] install() 失敗', err);
+      recognition.processLocally = false;
+      return false;
+    }
+
+    const ready = await waitUntilAvailable();
+    if (ready) {
+      showStatus('音声モデルの準備完了');
+      onDeviceReady = true;
+      recognition.processLocally = true;
+      return true;
+    }
+    console.warn('[SR] インストール未完了のためクラウド認識にフォールバック');
+    recognition.processLocally = false;
+    return false;
+  }
+
+  // 'unavailable'
+  recognition.processLocally = false;
+  return false;
+}
 
 let lastIdx    = 0;
 let retryCount = 0;
@@ -468,10 +493,13 @@ stg.addEventListener('change', () => {
 mic.addEventListener('change', () => {
   const micLabel = document.querySelector('label[for="mic"]');
   if (mic.checked) {
-    // ユーザー操作の直接ハンドラ内で audioCtx.resume() → srStart()
     retryCount = 0;
-    srStart(0);
     micLabel.textContent = 'mic';
+    // ensureOnDeviceReady() はこのハンドラの呼び出しスタック内で直接呼ぶ必要がある
+    // （install() が "downloadable" からのインストールにユーザージェスチャーを要求するため）。
+    ensureOnDeviceReady().finally(() => {
+      if (mic.checked) srStart(0);
+    });
   } else {
     srStop();
     micLabel.textContent = 'mic_off';
